@@ -1,0 +1,86 @@
+name: TechCorp API Ingestion (API Gateway -> Spec Hub)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      spec_name:
+        description: 'Name for the spec in Spec Hub'
+        required: false
+        default: 'TechCorp Payments API (Spec Hub)'
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday 6am UTC
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    name: Export & Sync to Postman
+    runs-on: ubuntu-latest
+
+    env:
+      HAS_AWS_CREDS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # --- AWS export path (if credentials are available) ---
+      - name: Configure AWS credentials
+        if: env.HAS_AWS_CREDS == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Run ingestion (AWS export mode)
+        if: env.HAS_AWS_CREDS == 'true'
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          python ingest_from_apigw.py \
+            --workspace-id "${{ secrets.POSTMAN_WORKSPACE_ID }}" \
+            --region "${{ secrets.AWS_REGION }}" \
+            --rest-api-id "${{ secrets.REST_API_ID }}" \
+            --stage-name "${{ secrets.STAGE_NAME }}" \
+            --spec-name "${{ github.event.inputs.spec_name || 'TechCorp Payments API (Spec Hub)' }}"
+
+      # --- Fallback: use committed spec if AWS creds unavailable ---
+      - name: Run ingestion (local spec fallback)
+        if: env.HAS_AWS_CREDS != 'true'
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+        run: |
+          echo "AWS credentials not available - using committed openapi.yaml"
+          python ingest_from_apigw.py \
+            --workspace-id "${{ secrets.POSTMAN_WORKSPACE_ID }}" \
+            --local-spec openapi.yaml \
+            --spec-name "${{ github.event.inputs.spec_name || 'TechCorp Payments API (Spec Hub)' }}"
+
+      - name: Upload exported spec
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi-export
+          path: openapi.yaml
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Ingestion Summary
+        if: success()
+        run: |
+          {
+            echo "## Ingestion Complete"
+            echo "- Synced OpenAPI spec to Postman Spec Hub"
+            echo "- Triggered baseline collection generation"
+            echo "- Baseline: regenerated (disposable)"
+            echo "- Consumer: protected (curated, human-owned)"
+          } >> "$GITHUB_STEP_SUMMARY"
