@@ -3,7 +3,7 @@ This repository demonstrates two GitHub Actions workflows:
 1. **Postman API Tests**: run an existing Postman Collection in CI.
 2. **TechCorp API Ingestion**: export (or load) an OpenAPI spec, sync it to **Postman Spec Hub**, and trigger a generated baseline collection.
 
-## Diff Lab 1: Automated API Tests (Collection Run)
+## Lab 3.3: Automated API Tests (Collection Run)
 ### Configure GitHub Secrets
 Add these secrets under **Settings → Secrets and variables → Actions**:
 - `POSTMAN_API_KEY`
@@ -21,7 +21,7 @@ Workflow file: `.github/workflows/postman-tests.yml`
 ### Outputs
 Test results are uploaded as artifacts and retained for 30 days.
 
-## Diff Lab 2: TechCorp API Ingestion (API Gateway → Spec Hub)
+## Lab 3.4: TechCorp API Ingestion (API Gateway → Spec Hub)
 ### What it does
 - **Export the Spec from API Gateway** (AWS export mode)
 - **Sync Spec → Spec Hub → Generated Collection** (baseline regen)
@@ -30,16 +30,19 @@ Test results are uploaded as artifacts and retained for 30 days.
 Workflow file: `.github/workflows/postman-ingestion.yml`
 
 ### Configure GitHub Secrets
-Required (both modes):
+AWS export is the **required** path for this lab.
+
+Required:
 - `POSTMAN_API_KEY`
 - `POSTMAN_WORKSPACE_ID`
-
-Optional (AWS export mode only):
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION`
 - `REST_API_ID`
 - `STAGE_NAME`
+
+Optional (fallback / local spec mode):
+- Commit an `openapi.yaml` to the repo (or provide a different file via `--local-spec` when running locally)
 
 ### Ways to run
 #### 1) GitHub Actions (recommended)
