@@ -1,0 +1,36 @@
+name: Postman API Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  test:
+    name: Run API Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Postman CLI
+        run: npm install -g postman-cli
+      - name: Login to Postman
+        run: postman login --with-api-key "${{ secrets.POSTMAN_API_KEY }}"
+      - name: Run Tests
+        run: |
+          mkdir -p results
+          postman collection run "${{ secrets.POSTMAN_COLLECTION_ID }}" \
+            -e "${{ secrets.POSTMAN_ENVIRONMENT_ID }}" \
+            --reporters cli,junit \
+            --reporter-junit-export results/tests.xml
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: results/tests.xml
+          retention-days: 30
